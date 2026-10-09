@@ -1,0 +1,172 @@
+📘 DOCUMENTAÇÃO TÉCNICA – BASE DE DADOS E CONEXÃO PYTHON/HFSQL
+Versão final para exportação
+
+1. Introdução à Base de Dados
+A solução utiliza como fonte de dados o banco HFSQL, responsável por armazenar todas as vendas realizadas no sistema de PDV. A tabela principal utilizada é a TAB_VENDA_ITEM, que contém os itens de cada venda. Cada linha representa um produto vendido dentro de uma venda específica.
+Essa tabela é suficiente para gerar toda a matriz de coocorrência, pois contém:
+- O ID da venda
+- O ID do produto
+- A descrição do produto
+
+2. Arquitetura da Base de Dados
+Aqui está um diagrama ASCII representando a estrutura da base:
+
+┌──────────────────────────────────────────────┐
+│                BANCO HFSQL                   │
+└──────────────────────────────────────────────┘
+                │
+                ▼
+┌──────────────────────────────────────────────┐
+│              TAB_VENDA_ITEM                  │
+├──────────────────────────────────────────────┤
+│ ven_id     → ID da venda                     │
+│ pro_id     → ID do produto                   │
+│ descricao  → Nome/descrição do produto       │
+└──────────────────────────────────────────────┘
+
+3. Estrutura da Tabela TAB_VENDA_ITEM
+BANCO HFSQL
+    └── TAB_VENDA_ITEM
+            ven_id      → ID da venda
+            pro_id      → ID do produto
+            descricao   → Nome/descrição do produto
+
+4. Conexão Python → HFSQL
+A conexão é realizada utilizando o driver pypyodbc, que permite que o Python se conecte ao HFSQL via ODBC.
+4.1. String de Conexão
+conn = pypyodbc.connect(
+    "Driver={HFSQL};Server Name=localhost;Server Port=4900;Database=A37278473;UID=admin;PWD=;"
+)
+4.2. Explicação dos Parâmetros
+- Driver → Driver ODBC do HFSQL
+- Server Name → Nome do servidor (localhost)
+- Server Port → Porta padrão do HFSQL (4900)
+- Database → Nome do banco
+- UID → Usuário
+- PWD → Senha
+
+5. Fluxo da Conexão e Consulta
+┌──────────────────────────┐
+│ Início                   │
+└───────────────┬──────────┘
+                │
+                ▼
+┌──────────────────────────┐
+│ Carregar driver ODBC     │
+│ (pypyodbc)               │
+└───────────────┬──────────┘
+                │
+                ▼
+┌──────────────────────────┐
+│ Criar string de conexão  │
+│ com parâmetros HFSQL     │
+└───────────────┬──────────┘
+                │
+                ▼
+┌──────────────────────────┐
+│ Tentar conectar ao banco │
+└───────────────┬──────────┘
+        ┌───────┴────────────┐
+        │                      │
+        ▼                      ▼
+┌────────────────────┐   ┌──────────────────────────┐
+│ Falha na conexão    │   │ Conexão bem-sucedida     │
+│ Registrar erro       │   └───────────────┬──────────┘
+│ Encerrar processo    │                   │
+└────────────────────┘                   ▼
+                                ┌──────────────────────────┐
+                                │ Criar cursor SQL         │
+                                └───────────────┬──────────┘
+                                                │
+                                                ▼
+                                ┌──────────────────────────┐
+                                │ Executar SELECT na       │
+                                │ TAB_VENDA_ITEM           │
+                                └───────────────┬──────────┘
+                                                │
+                                                ▼
+                                ┌──────────────────────────┐
+                                │ Ler resultados e enviar  │
+                                │ para o Spark             │
+                                └───────────────┬──────────┘
+                                                │
+                                                ▼
+                                        ┌──────────────┐
+                                        │     Fim       │
+                                        └──────────────┘
+
+6. Consulta SQL Utilizada
+SELECT 
+    CAST(ven_id AS VARCHAR(50)),
+    CAST(pro_id AS VARCHAR(50)),
+    CAST(descricao AS VARCHAR(255))
+FROM TAB_VENDA_ITEM
+
+Por que usar CAST?
+- Evita erros de tipo no Spark
+- Garante consistência entre colunas
+- Facilita joins e agrupamentos
+
+7. Fluxo de Dados da Consulta até o Spark
+┌──────────────────────────────┐
+│         HFSQL Server         │
+│  TAB_VENDA_ITEM (vendas)     │
+└───────────────┬──────────────┘
+                │ SELECT SQL
+                ▼
+┌──────────────────────────────┐
+│       Python (pypyodbc)      │
+│  - Executa consulta SQL       │
+│  - Recebe linhas da tabela    │
+└───────────────┬──────────────┘
+                │ cursor.fetchall()
+                ▼
+┌──────────────────────────────┐
+│      Spark DataFrame         │
+│  - Cria DF com colunas       │
+│    ven_id, pro_id, descricao │
+└───────────────┬──────────────┘
+                │
+                ▼
+┌──────────────────────────────┐
+│ Processamento distribuído    │
+│ (agrupamento, explode, etc.) │
+└──────────────────────────────┘
+
+8. Código Completo da Conexão e Consulta
+conn = pypyodbc.connect(
+    "Driver={HFSQL};Server Name=localhost;Server Port=4900;Database=A37278473;UID=admin;PWD=;"
+)
+cursor = conn.cursor()
+
+cursor.execute("""
+    SELECT 
+        CAST(ven_id AS VARCHAR(50)),
+        CAST(pro_id AS VARCHAR(50)),
+        CAST(descricao AS VARCHAR(255))
+    FROM TAB_VENDA_ITEM
+""")
+
+dados = cursor.fetchall()
+conn.close()
+
+9. Funcionamento do Cursor SQL
+Python Script
+    ↓
+Cursor SQL
+    - Executa comandos
+    - Recebe resultados
+    ↓
+HFSQL Engine
+    - Processa SELECT
+    - Retorna linhas
+
+10. Conclusão
+Este documento apresentou uma visão completa da base de dados utilizada pelo sistema, incluindo:
+- Estrutura da tabela TAB_VENDA_ITEM
+- Conexão Python → HFSQL
+- Consulta SQL utilizada
+- Fluxos e diagramas detalhados
+- Funcionamento do cursor
+- Caminho dos dados até o Spark
+Essa camada é fundamental para garantir que o processamento de coocorrência seja preciso, rápido e confiável
