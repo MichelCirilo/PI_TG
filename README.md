@@ -275,4 +275,4 @@ OLIVEIRA, M. C.; PIVA JUNIOR, D.; NUNES, R. H.; PEREIRA JUNIOR, H. R. J. *A evol
 
 ---
 
-<p align="center"><i>"Do rústico ao sofisticado: cada semestre, um salto evolutivo."</i></p>
+<p align="center"><i>"nós somos máquinas de sentimentos, e é justamente essa biologia que desperta a nossa consciência e as nossas emoções; em contrapartida, a Inteligência Artificial opera no espectro oposto: são máquinas frias de pensamento que, desprovidas de emoções e baseadas apenas em processamento de dados, tentam simular o sentir."</i></p>
